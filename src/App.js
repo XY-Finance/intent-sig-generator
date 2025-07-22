@@ -151,6 +151,19 @@ function App() {
   const [buildAndExecuteCallCalldata, setBuildAndExecuteCallCalldata] = useState('');
   const [buildAndExecuteCallError, setBuildAndExecuteCallError] = useState('');
 
+  // DCA Intent State
+  const [dcaIntent, setDcaIntent] = useState({
+    chainId: '',
+    srcToken: '',
+    dstToken: '',
+    amount: '',
+    interval: '',
+    priceImpact: '',
+    epoch: ''
+  });
+  const [dcaSignature, setDcaSignature] = useState('');
+  const [dcaSignError, setDcaSignError] = useState('');
+
   // Connect MetaMask
   const connectWallet = async () => {
     try {
@@ -960,6 +973,74 @@ function App() {
     } catch (err) {
       setBuildAndExecuteCallError(err.message);
       setBuildAndExecuteCallCalldata('');
+    }
+  };
+
+  // EIP-712 DCA Intent Type
+  const DCA_EIP712_DOMAIN = (chainId) => ({
+    name: 'DCAIntent',
+    version: '1',
+    chainId: parseInt(chainId || '1'),
+    verifyingContract: '0x0000000000000000000000000000000000000000', // 可根據實際合約調整
+  });
+
+  const DCA_EIP712_TYPES = {
+    DCAIntent: [
+      { name: 'chainId', type: 'uint256' },
+      { name: 'srcToken', type: 'address' },
+      { name: 'dstToken', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'interval', type: 'uint256' },
+      { name: 'priceImpact', type: 'uint256' },
+      { name: 'epoch', type: 'uint256' },
+    ],
+  };
+
+  const handleDcaInputChange = (e) => {
+    const { name, value } = e.target;
+    setDcaIntent((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // 產生 EIP-712 Typed Data
+  const getDcaTypedData = () => {
+    return {
+      types: DCA_EIP712_TYPES,
+      domain: DCA_EIP712_DOMAIN(dcaIntent.chainId),
+      primaryType: 'DCAIntent',
+      message: {
+        chainId: dcaIntent.chainId ? parseInt(dcaIntent.chainId) : 1,
+        srcToken: dcaIntent.srcToken,
+        dstToken: dcaIntent.dstToken,
+        amount: dcaIntent.amount ? dcaIntent.amount.toString() : '0',
+        interval: dcaIntent.interval ? dcaIntent.interval.toString() : '0',
+        priceImpact: dcaIntent.priceImpact ? dcaIntent.priceImpact.toString() : '0',
+        epoch: dcaIntent.epoch ? dcaIntent.epoch.toString() : '0',
+      },
+    };
+  };
+
+  // EIP-712 簽名
+  const signDcaIntent = async () => {
+    setDcaSignError('');
+    setDcaSignature('');
+    try {
+      if (!window.ethereum || !account) {
+        setDcaSignError('請先連接錢包');
+        return;
+      }
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const typedData = getDcaTypedData();
+      const from = account;
+      // MetaMask 需要 JSON 字串
+      const data = JSON.stringify(typedData);
+      const signature = await window.ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [from, data],
+      });
+      setDcaSignature(signature);
+    } catch (err) {
+      setDcaSignError(err.message || '簽名失敗');
     }
   };
 
@@ -2027,6 +2108,53 @@ function App() {
           </Card>
         </Col>
       </Row>
+
+      {/* DCA Intent Section */}
+      <Card className="mb-4">
+        <Card.Header><b>Sign DCA Intent (EIP-712)</b></Card.Header>
+        <Card.Body>
+          <Form>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Chain ID</Form.Label></Col>
+              <Col md={8}><Form.Control name="chainId" value={dcaIntent.chainId} onChange={handleDcaInputChange} placeholder="e.g. 1" /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Source Token (address)</Form.Label></Col>
+              <Col md={8}><Form.Control name="srcToken" value={dcaIntent.srcToken} onChange={handleDcaInputChange} placeholder="0x..." /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Destination Token (address)</Form.Label></Col>
+              <Col md={8}><Form.Control name="dstToken" value={dcaIntent.dstToken} onChange={handleDcaInputChange} placeholder="0x..." /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Amount</Form.Label></Col>
+              <Col md={8}><Form.Control name="amount" value={dcaIntent.amount} onChange={handleDcaInputChange} placeholder="Unit: wei" /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Interval (days)</Form.Label></Col>
+              <Col md={8}><Form.Control name="interval" value={dcaIntent.interval} onChange={handleDcaInputChange} placeholder="e.g. 7 days" /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Price Impact </Form.Label></Col>
+              <Col md={8}><Form.Control name="priceImpact" value={dcaIntent.priceImpact} onChange={handleDcaInputChange} placeholder="e.g. 100 = 1%" /></Col>
+            </Row>
+            <Row className="mb-2">
+              <Col md={4}><Form.Label>Epoch</Form.Label></Col>
+              <Col md={8}><Form.Control name="epoch" value={dcaIntent.epoch} onChange={handleDcaInputChange} placeholder="e.g. 4 runs" /></Col>
+            </Row>
+            <Button variant="primary" onClick={signDcaIntent} className="mt-2">Sign DCA Intent</Button>
+          </Form>
+          {dcaSignature && (
+            <Alert variant="success" className="mt-3">
+              <b>Signature Result:</b>
+              <div style={{ wordBreak: 'break-all' }}>{dcaSignature}</div>
+            </Alert>
+          )}
+          {dcaSignError && (
+            <Alert variant="danger" className="mt-3">{dcaSignError.replace('請先連接錢包', 'Please connect your wallet').replace('簽名失敗', 'Signature failed')}</Alert>
+          )}
+        </Card.Body>
+      </Card>
     </Container>
   );
 }

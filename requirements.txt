@@ -1,0 +1,17 @@
+requests
+pandas
+numpy
+uv
+python-dotenv
+tqdm
+matplotlib
+scikit-learn
+scipy
+seaborn
+plotly
+plotly-express
+fastapi
+uvicorn
+optuna
+pyarrow
+openai
