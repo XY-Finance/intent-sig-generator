@@ -164,6 +164,11 @@ function App() {
   const [dcaSignature, setDcaSignature] = useState('');
   const [dcaSignError, setDcaSignError] = useState('');
 
+  // User Tag
+  const [userTagAddress, setUserTagAddress] = useState('');
+  const [userTagResult, setUserTagResult] = useState(null);
+  const [userTagError, setUserTagError] = useState('');
+
   // Connect MetaMask
   const connectWallet = async () => {
     try {
@@ -1041,6 +1046,31 @@ function App() {
       setDcaSignature(signature);
     } catch (err) {
       setDcaSignError(err.message || '簽名失敗');
+    }
+  };
+
+  // query get_user_tag API
+  const fetchUserTag = async () => {
+    setUserTagError('');
+    setUserTagResult(null);
+    if (!userTagAddress) {
+      setUserTagError('Please enter an address');
+      return;
+    }
+    try {
+      const resp = await fetch('http://localhost:3001/get_user_tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: userTagAddress })
+      });
+      const data = await resp.json();
+      if (data.tags) {
+        setUserTagResult(data.tags);
+      } else {
+        setUserTagError(data.result || 'No tags found');
+      }
+    } catch (err) {
+      setUserTagError('API error: ' + err.message);
     }
   };
 
@@ -2155,6 +2185,39 @@ function App() {
           )}
         </Card.Body>
       </Card>
+
+      {/* User Tag Section */}
+      <Row className="mb-4">
+        <Col>
+          <Card>
+            <Card.Body>
+              <Card.Title>Get User Tag</Card.Title>
+              <Form.Group className="mb-3">
+                <Form.Label>Address</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={userTagAddress}
+                  onChange={e => setUserTagAddress(e.target.value)}
+                  placeholder="Enter user address"
+                />
+              </Form.Group>
+              <Button variant="primary" onClick={fetchUserTag}>
+                Query Tags
+              </Button>
+              {userTagError && (
+                <Alert variant="danger" className="mt-3">{userTagError}</Alert>
+              )}
+              {userTagResult && (
+                <Alert variant="success" className="mt-3">
+                  <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {JSON.stringify(userTagResult, null, 2)}
+                  </pre>
+                </Alert>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     </Container>
   );
 }

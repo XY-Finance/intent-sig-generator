@@ -69,6 +69,7 @@ def get_contract_sender_list(
     Fetches a list of unique senders who interacted with all contracts of a given type.
     """
     cache_path = f"ml/data/raw/cache/senders_{protocol_type}_{chain_id}.json"
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     if use_cache and os.path.exists(cache_path):
         with open(cache_path, "r") as f:
             sender_list = json.load(f)

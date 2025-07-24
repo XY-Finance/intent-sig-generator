@@ -3,8 +3,8 @@ COLLECT_RAW_DATA_CONFIG = {
     "chain_ids": [1, 42161, 8453],  # required
     "timestamp_threshold": 1672531200,  # required, default: 2023-01-01
     "based_protocol_type": "Lending",  # required, default: Lending
-    "senders_count_threshold": 30,  # required, min:10
-    "senders_max_pages": 5,  # required, min:1
+    "senders_count_threshold": 50,  # required, min:10
+    "senders_max_pages": 6,  # required, min:1
     "logs_max_pages": 2,  # required, min:1
     "max_workers": 3,  # optional, min:1
     "use_cache": False,  # optional

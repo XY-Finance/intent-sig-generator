@@ -1,7 +1,6 @@
 requests
 pandas
 numpy
-uv
 python-dotenv
 tqdm
 matplotlib
