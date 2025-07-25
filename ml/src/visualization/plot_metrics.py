@@ -16,7 +16,9 @@ def plot_hierarchical_metrics(
             hierarchical_metrics_data[cluster][key] = {}
             for t in types:
                 try:
-                    hierarchical_metrics_data[cluster][key][t] = metrics[category][key][t]
+                    hierarchical_metrics_data[cluster][key][t] = metrics[category][key][
+                        t
+                    ]
                 except KeyError:
                     hierarchical_metrics_data[cluster][key][t] = None
 

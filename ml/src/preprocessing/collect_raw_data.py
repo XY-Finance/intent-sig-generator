@@ -108,43 +108,56 @@ def get_contract_sender_list(
     return sender_list
 
 
-def get_eoa_transactions(eoa_address: str, chain_id: int) -> List[Dict[str, Any]]:
+def get_eoa_transactions(
+    eoa_address: str, chain_id: int, max_pages: int = 10
+) -> List[Dict[str, Any]]:
     """
-    Fetches the 100 most recent transactions for a given EOA address.
+    Fetches up to (max_pages * 100) most recent transactions for a given EOA address.
     """
     api_key = ENDPOINTS[chain_id]["api_key"]
     base_url = ENDPOINTS[chain_id]["api_url"]
-    params = {
-        "chainid": chain_id,
-        "module": "account",
-        "action": "txlist",
-        "address": eoa_address,
-        "startblock": 0,
-        "endblock": 99999999,
-        "page": 1,
-        "offset": 100,
-        "sort": "desc",
-        "apikey": api_key,
-    }
-    try:
-        resp = requests.get(base_url, params=params).json()
-        if resp["status"] == "1" and resp.get("result"):
-            for tx in resp["result"]:
-                tx["address"] = eoa_address
-                tx["chain_id"] = chain_id
-            return resp["result"]
-        else:
-            logging.warning(
-                f"Could not fetch txs for {eoa_address}: {resp.get('message', 'No message')}, {resp.get('result', 'No result')}"
+    all_results = []
+    for page in range(1, max_pages + 1):
+        params = {
+            "chainid": chain_id,
+            "module": "account",
+            "action": "txlist",
+            "address": eoa_address,
+            "startblock": 0,
+            "endblock": 99999999,
+            "page": page,
+            "offset": 100,
+            "sort": "desc",
+            "apikey": api_key,
+        }
+        try:
+            resp = requests.get(base_url, params=params).json()
+            if resp["status"] == "1" and resp.get("result"):
+                for tx in resp["result"]:
+                    tx["address"] = eoa_address
+                    tx["chain_id"] = chain_id
+                all_results.extend(resp["result"])
+                if len(resp["result"]) < 100:
+                    break
+            else:
+                logging.warning(
+                    f"Could not fetch txs for {eoa_address} page {page}: {resp.get('message', 'No message')}, {resp.get('result', 'No result')}"
+                )
+                break
+        except requests.exceptions.RequestException as e:
+            logging.error(
+                f"API request failed for get_eoa_transactions {eoa_address} page {page}: {e}"
             )
-            return []
-    except requests.exceptions.RequestException as e:
-        logging.error(f"API request failed for get_eoa_transactions {eoa_address}: {e}")
-        return []
+            break
+    return all_results
 
 
 def fetch_transactions_concurrently(
-    sender_list: List[str], chain_id: int, use_cache: bool = False, max_workers: int = 3
+    sender_list: List[str],
+    chain_id: int,
+    use_cache: bool = False,
+    max_workers: int = 3,
+    eoa_max_pages: int = 2,
 ) -> List[Dict[str, Any]]:
     """
     Fetches transactions for a list of addresses concurrently using a thread pool.
@@ -158,7 +171,9 @@ def fetch_transactions_concurrently(
         return single_chain_txs
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_sender = {
-            executor.submit(get_eoa_transactions, sender, chain_id): sender
+            executor.submit(
+                get_eoa_transactions, sender, chain_id, eoa_max_pages
+            ): sender
             for sender in sender_list
         }
 
@@ -566,6 +581,7 @@ if __name__ == "__main__":
     senders_max_pages = get_config_value("senders_max_pages")
     logs_max_pages = get_config_value("logs_max_pages")
     senders_count_threshold = get_config_value("senders_count_threshold")
+    eoa_max_pages = get_config_value("eoa_max_pages")
 
     logging.info(
         f"Step 1: Fetching list of senders who interacted with the target contracts on based CHAIN_ID: {based_chain_id}..."
@@ -608,7 +624,7 @@ if __name__ == "__main__":
             f"Step 3: Fetching recent transactions for each sender concurrently on CHAIN_ID: {chain_id}..."
         )
         txs_by_chain = fetch_transactions_concurrently(
-            sender_list, chain_id, use_cache, max_workers
+            sender_list, chain_id, use_cache, max_workers, eoa_max_pages
         )
 
         logging.info(
