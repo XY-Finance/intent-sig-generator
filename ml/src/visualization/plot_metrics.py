@@ -11,13 +11,20 @@ def plot_hierarchical_metrics(
     types = ["min", "max", "median", "mean"]
 
     for cluster, metrics in hierarchical_metrics.items():
-        hierarchical_metrics_data[cluster] = {
-            key: {t: metrics[category][key][t] for t in types}
-            for key in metrics[category]
-        }
+        hierarchical_metrics_data[cluster] = {}
+        for key in metrics.get(category, {}):
+            hierarchical_metrics_data[cluster][key] = {}
+            for t in types:
+                try:
+                    hierarchical_metrics_data[cluster][key][t] = metrics[category][key][t]
+                except KeyError:
+                    hierarchical_metrics_data[cluster][key][t] = None
 
     first_cluster = next(iter(hierarchical_metrics))
-    metrics_to_plot = list(hierarchical_metrics[first_cluster][category].keys())
+    if category in hierarchical_metrics[first_cluster]:
+        metrics_to_plot = list(hierarchical_metrics[first_cluster][category].keys())
+    else:
+        return
 
     n_metrics = len(metrics_to_plot)
     n_cols = math.ceil(math.sqrt(n_metrics))
@@ -28,16 +35,6 @@ def plot_hierarchical_metrics(
         axes = [axes]
     else:
         axes = axes.flatten()
-
-    # for cluster, metrics in hierarchical_metrics.items():
-    #     hierarchical_metrics_data[cluster] = {
-    #         'received_count': {t: metrics['tx-activity']['received_count'][t] for t in types},
-    #         'total_received_eth': {t: metrics['tx-activity']['total_received_eth'][t] for t in types},
-    #         'sent_count': {t: metrics['tx-activity']['sent_count'][t] for t in types},
-    #         'total_sent_eth': {t: metrics['tx-activity']['total_sent_eth'][t] for t in types}
-    #     }
-
-    # metrics_to_plot = ['received_count', 'total_received_eth', 'sent_count', 'total_sent_eth']
 
     for ax, metric in zip(axes, metrics_to_plot):
         for stat_type, color in range_color_map.items():

@@ -8,4 +8,5 @@ COLLECT_RAW_DATA_DEFAULT_CONFIG = {
     "logs_max_pages": 2,  # required
     "max_workers": 3,  # required
     "use_cache": False,  # required
+    "eoa_max_pages": 2,  # required
 }

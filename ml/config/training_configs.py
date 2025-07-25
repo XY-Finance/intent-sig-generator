@@ -8,6 +8,7 @@ COLLECT_RAW_DATA_CONFIG = {
     "logs_max_pages": 2,  # required, min:1
     "max_workers": 3,  # optional, min:1
     "use_cache": False,  # optional
+    "eoa_max_pages": 2,  # optional, default:2, fetches up to (max_pages * 100) most recent transactions for a given EOA address.
 }
 
 FEATURES_ENGINEERING_CONFIG = {
