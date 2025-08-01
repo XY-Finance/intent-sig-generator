@@ -653,6 +653,29 @@ def calc_total_tx_usd_value(group, flow_type="inflow"):
     return round(total_usd_value, 2)
 
 
+def calc_max_tx_burst(df, interval_hours=24):
+    df = df.copy()
+    
+    # Create time intervals
+    df['interval_start'] = df['timestamp_dt'].dt.floor(f'{interval_hours}h')
+    
+    # Count transactions per user per interval
+    interval_counts = (
+        df.groupby(['address', 'interval_start'])
+        .size()
+        .reset_index(name='tx_count_in_interval')
+    )
+    
+    # Find the maximum burst for each user
+    max_burst = (
+        interval_counts.groupby('address')['tx_count_in_interval']
+        .max()
+        .reset_index(name='max_tx_burst')
+    )
+    
+    return max_burst
+
+
 def calc_tx_timing_features(group):
     min_time = group["timestamp_dt"].min()
     max_time = group["timestamp_dt"].max()
@@ -663,9 +686,9 @@ def calc_tx_timing_features(group):
                 "first_timestamp_dt": min_time,
                 "last_timestamp_dt": max_time,
                 "lifetime_days": 0,
-                "txs_per_day": 0,
-                "txs_per_week": 0,
-                "txs_per_month": 0,
+                "lifetime_daily_txs": 0,
+                "lifetime_weekly_txs": 0,
+                "lifetime_monthly_txs": 0,
             }
         )
     tx_count = len(group)
@@ -676,9 +699,9 @@ def calc_tx_timing_features(group):
             "first_timestamp_dt": min_time,
             "last_timestamp_dt": max_time,
             "lifetime_days": lifetime_days,
-            "txs_per_day": round(tx_count / lifetime_days, 2),
-            "txs_per_week": round(tx_count / (min_week_days / 7), 2),
-            "txs_per_month": round(tx_count / (min_month_days / 30), 2),
+            "lifetime_daily_txs": round(tx_count / lifetime_days, 2),
+            "lifetime_weekly_txs": round(tx_count / (min_week_days / 7), 2),
+            "lifetime_monthly_txs": round(tx_count / (min_month_days / 30), 2),
         }
     )
 
@@ -687,6 +710,7 @@ def preprocess_tx_behavior(
     df: pd.DataFrame,
     active_days_threshold: int = 730,
     active_score_settings: dict = None,
+    max_tx_burst_intervals: dict = None,
 ) -> pd.DataFrame:
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
@@ -765,21 +789,41 @@ def preprocess_tx_behavior(
     active_days = (
         df_recent.groupby("address")["date"].nunique().reset_index(name="active_days")
     )
+    active_tx_count = (
+        df_recent.groupby("address").size().reset_index(name="active_tx_count")
+    )
+    
     features_address = features_address.merge(active_days, on="address", how="left")
+    features_address = features_address.merge(active_tx_count, on="address", how="left")
+    
     features_address["active_days"] = (
         features_address["active_days"].fillna(0).astype(int)
     )
+    features_address["active_tx_count"] = (
+        features_address["active_tx_count"].fillna(0).astype(int)
+    )
+    
     features_address["active_days_ratio"] = round(
         features_address["active_days"] / active_days_threshold, 2
     )
-    features_address["tx_avg_burst"] = features_address.apply(
+    features_address["active_daily_txs"] = features_address.apply(
         lambda row: (
-            round(row["total_tx_count"] / row["active_days"], 2)
+            round(row["active_tx_count"] / row["active_days"], 2)
             if row["active_days"] > 0
             else 0
         ),
         axis=1,
     )
+
+    for interval_name, interval_hours in max_tx_burst_intervals.items():
+        if interval_name == "n_hours":
+            column_name = f"max_tx_burst_{str(interval_hours)}h"
+        else:
+            column_name = f"max_tx_burst_{interval_name}"
+        max_burst_df = calc_max_tx_burst(df, interval_hours=interval_hours)
+        max_burst_df = max_burst_df.rename(columns={"max_tx_burst": column_name})
+        features_address = features_address.merge(max_burst_df, on="address", how="left")
+        features_address[column_name] = features_address[column_name].fillna(0).astype(int)
 
     protocol_focus_df = calc_protocol_type_focus(df)
     features_address = features_address.merge(
@@ -806,7 +850,11 @@ def preprocess_tx_behavior(
         "total_protocol_type",
         "total_methods",
         "total_tx_count",
-        "txs_per_week",
+        "lifetime_daily_txs",
+        "lifetime_weekly_txs",
+        "lifetime_monthly_txs",
+        "active_tx_count",
+        "active_daily_txs",
     ]:
         features_address = calc_minmax_norm(features_address, col)
 
@@ -831,6 +879,7 @@ if __name__ == "__main__":
     assets_lookback_months = get_config_value("assets_lookback_months")
     whale_score_settings = get_config_value("whale_score_settings")
     active_score_settings = get_config_value("active_score_settings")
+    max_tx_burst_intervals = get_config_value("max_tx_burst_intervals")
 
     logging.info("Preprocessing transaction data...")
     df = parse_transaction_columns(df)
@@ -842,7 +891,7 @@ if __name__ == "__main__":
 
     logging.info("Preprocessing tx behavior...")
     tx_behavior_df = preprocess_tx_behavior(
-        df, active_days_threshold, active_score_settings
+        df, active_days_threshold, active_score_settings, max_tx_burst_intervals
     )
 
     logging.info("Merging and saving features...")

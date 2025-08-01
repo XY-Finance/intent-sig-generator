@@ -24,8 +24,14 @@ yarn-error.log*
 /backup_data
 /analysis
 /backend
-/ml/src/results/
+/ml/src/results/*
 /ml/src/models/kmeans/pkl/
+/ml/data/models/kmeans/kmeans_predictions.csv
+/ml/data/models/kmeans/kmeans_predictions.arrow
+/ml/data/models/kmeans/kmeans_performance.json
+/ml/data/features/*
+/ml/data/processed/*
+/ml/data/raw/*
 
 *.pyc
 __pycache__/

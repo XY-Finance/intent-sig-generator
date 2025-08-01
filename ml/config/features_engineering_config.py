@@ -7,6 +7,12 @@ FEATURES_ENGINEERING_DEFAULT_CONFIG = {
     ],
     "active_days_threshold": 730,  # optional
     "assets_lookback_months": 12,  # optional
+    "max_tx_burst_intervals": {  # optional
+        "hourly": 1, # 1 hour  
+        "daily": 24, # 24 hours
+        "weekly": 168, # 7 days * 24 hours
+        "n_hours": 4, # n hours
+    },
     "whale_score_settings": {  # optional
         "user_net_flow_eth_log_abs_norm": 0.10,
         "user_received_eth_norm": 0.05,
